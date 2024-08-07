@@ -1,5 +1,5 @@
 $baseUrl = "http://egg2.wustl.edu/roadmap/data/byFileType/signal/consolidated/macs2signal/foldChange/"
-$outputPath = "C:\Users\achar\OneDrive\Documents\GitHub\merc\data"
+$outputPath = "C:\Users\achar\Downloads"
 
 function Get-FilesRecursively($url) {
     $response = Invoke-WebRequest -Uri $url
