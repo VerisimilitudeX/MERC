@@ -1,5 +1,5 @@
 $baseUrl = "http://egg2.wustl.edu/roadmap/data/byFileType/signal/consolidated/macs2signal/"
-$outputPath = "C:\Users\achar\Downloads\RoadmapEpigenomics_Full"
+$outputPath = "C:\Users\achar\OneDrive\Documents\GitHub\merc\data\subset"
 $visitedUrls = New-Object System.Collections.Generic.HashSet[string]
 $totalSize = 0
 $fileCount = 0
