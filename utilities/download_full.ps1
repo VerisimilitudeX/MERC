@@ -21,7 +21,7 @@ function Get-FilesRecursively($url) {
             if ($newUrl -like "*.bigwig") {
                 $fileSize = Get-RemoteFileSize $newUrl
                 $script:totalSize += $fileSize
-                $script:fileCount++
+                $script:fileCount++git lfs push --all
                 Download-File $newUrl
                 Report-Progress
             } elseif ($newUrl -like "$baseUrl*") {
