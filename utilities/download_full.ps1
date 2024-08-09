@@ -1,47 +1,32 @@
-$baseUrl = "http://egg2.wustl.edu/roadmap/data/byFileType/signal/consolidated/macs2signal/"
-$outputPath = "C:\Users\achar\OneDrive\Documents\GitHub\merc\data\subset"
-$visitedUrls = New-Object System.Collections.Generic.HashSet[string]
-$totalSize = 0
-$fileCount = 0
-$lastReportTime = Get-Date
+$baseUrl = "http://egg2.wustl.edu/roadmap/data/byFileType/signal/consolidated/macs2signal/foldChange/"
+$outputFolder = "/Volumes/T9/full”
 
-function Get-FilesRecursively($url) {
-    if (-not $visitedUrls.Add($url)) {
-        return
-    }
-    
-    Write-Host "Scanning URL: $url"
-    
-    try {
-        $response = Invoke-WebRequest -Uri $url -UseBasicParsing
-        $links = $response.Links | Where-Object { $_.href -like "*.bigwig" -or $_.href -like "*/" }
+# Create the output folder if it doesn't exist
+if (-not (Test-Path $outputFolder)) {
+    New-Item -ItemType Directory -Path $outputFolder | Out-Null
+}
 
-        foreach ($link in $links) {
-            $newUrl = [System.Uri]::new([System.Uri]$url, $link.href).AbsoluteUri
-            if ($newUrl -like "*.bigwig") {
-                $fileSize = Get-RemoteFileSize $newUrl
-                $script:totalSize += $fileSize
-                $script:fileCount++git lfs push --all
-                Download-File $newUrl
-                Report-Progress
-            } elseif ($newUrl -like "$baseUrl*") {
-                Get-FilesRecursively $newUrl
-            }
+function Download-Files($url) {
+    $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+    $links = $response.Links | Where-Object { $_.href -like "*.bigwig" }
+
+    foreach ($link in $links) {
+        $fileUrl = [System.Uri]::new([System.Uri]$url, $link.href).AbsoluteUri
+        $fileName = $link.href
+        $outputPath = Join-Path $outputFolder $fileName
+
+        Write-Host "Downloading: $fileName"
+        try {
+            Invoke-WebRequest -Uri $fileUrl -OutFile $outputPath
+            Write-Host "Downloaded: $fileName"
         }
-    }
-    catch {
-        Write-Host "Error accessing $url : $_"
+        catch {
+            Write-Host "Error downloading $fileName : $_"
+        }
     }
 }
 
-# The rest of the functions (Get-RemoteFileSize, Download-File, Format-FileSize, Report-Progress) 
-# remain the same as in the subset script
+# Start the download process
+Download-Files $baseUrl
 
-# Start the recursive search
-Get-FilesRecursively $baseUrl
-
-# Final report
-$formattedSize = Format-FileSize $totalSize
-Write-Host "Final Report:"
-Write-Host "Total .bigwig files downloaded: $fileCount"
-Write-Host "Total size of all files: $formattedSize"
+Write-Host "Download process completed."
