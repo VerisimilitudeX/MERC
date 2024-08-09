@@ -1,0 +1,23 @@
+# Set the GDC Data Transfer Tool path
+$gdcClientPath = "C:\Path\To\gdc-client.exe"
+
+# Set the output directory
+$outputDir = "C:\TCGA_Epigenetics_Data"
+
+# Create the output directory if it doesn't exist
+if (-not (Test-Path $outputDir)) {
+    New-Item -ItemType Directory -Path $outputDir | Out-Null
+}
+
+# Set the manifest file path
+$manifestFile = "$outputDir\gdc_manifest.txt"
+
+# Download the manifest file for DNA methylation data
+$manifestUrl = "https://api.gdc.cancer.gov/files?fields=file_id&size=100000&format=TSV&filters=%7B%22op%22:%22and%22,%22content%22:%5B%7B%22op%22:%22in%22,%22content%22:%7B%22field%22:%22files.data_category%22,%22value%22:%5B%22DNA%20Methylation%22%5D%7D%7D,%7B%22op%22:%22in%22,%22content%22:%7B%22field%22:%22files.access%22,%22value%22:%5B%22open%22%5D%7D%7D%5D%7D"
+
+Invoke-WebRequest -Uri $manifestUrl -OutFile $manifestFile
+
+# Download the data using gdc-client
+& $gdcClientPath download -m $manifestFile -d $outputDir
+
+Write-Host "Download complete. Data saved to $outputDir"
