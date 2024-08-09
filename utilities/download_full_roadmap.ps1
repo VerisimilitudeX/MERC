@@ -1,5 +1,5 @@
 $baseUrl = "http://egg2.wustl.edu/roadmap/data/byFileType/signal/consolidated/macs2signal/foldChange/"
-$outputFolder = "E:\full"
+$outputFolder = "E:\full\pval"
 
 # Create the output folder if it doesn't exist
 if (-not (Test-Path $outputFolder)) {
