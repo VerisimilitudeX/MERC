@@ -23,16 +23,23 @@ function Get-FilesRecursively($url, $depth = 0) {
     
     try {
         $response = Invoke-WebRequest -Uri $url -UseBasicParsing
-        $links = $response.Links | Where-Object { $_.href -like "*.bigwig" -or ($_.href -like "*/" -and $_.href -notlike "../") }
+        $links = $response.Links | Where-Object { $_.href -ne $null }
+
+        $totalLinks = $links.Count
+        $processedLinks = 0
 
         foreach ($link in $links) {
+            $processedLinks++
             $newUrl = [System.Uri]::new([System.Uri]$url, $link.href).AbsoluteUri
+            Write-Progress -Activity "Processing links" -Status "Processing link $processedLinks of $totalLinks" -PercentComplete (($processedLinks / $totalLinks) * 100)
+
             if ($newUrl -like "*.bigwig") {
                 Download-File $newUrl
-            } elseif ($newUrl.StartsWith($baseUrl)) {
+            } elseif ($newUrl.StartsWith($baseUrl) -and $newUrl -ne $url) {
                 Get-FilesRecursively $newUrl ($depth + 1)
             }
         }
+        Write-Progress -Activity "Processing links" -Completed
     }
     catch {
         Log-Message "Error accessing $url : $_"
@@ -45,14 +52,27 @@ function Download-File($url) {
     if (!(Test-Path $fileDir)) {
         New-Item -ItemType Directory -Path $fileDir -Force | Out-Null
     }
+    
+    if (Test-Path $filePath) {
+        Log-Message "File already exists: $filePath"
+        return
+    }
+    
     Log-Message "Attempting to download: $url to $filePath"
     try {
         $webClient = New-Object System.Net.WebClient
+        $webClient.Headers.Add("User-Agent", "PowerShell Script")
+
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $webClient.DownloadFile($url, $filePath)
+        $stopwatch.Stop()
+
         $fileInfo = Get-Item $filePath
         $script:totalSize += $fileInfo.Length
         $script:fileCount++
-        Log-Message "Downloaded: $($fileInfo.Name), Size: $($fileInfo.Length) bytes"
+        
+        $downloadSpeed = [math]::Round($fileInfo.Length / 1MB / $stopwatch.Elapsed.TotalSeconds, 2)
+        Log-Message "Downloaded: $($fileInfo.Name), Size: $($fileInfo.Length) bytes, Time: $($stopwatch.Elapsed.TotalSeconds) seconds, Speed: $downloadSpeed MB/s"
     }
     catch {
         Log-Message "Error downloading $url : $_"
@@ -60,16 +80,6 @@ function Download-File($url) {
     finally {
         if ($webClient) { $webClient.Dispose() }
     }
-}
-
-function Format-FileSize($bytes) {
-    $sizes = "Bytes", "KB", "MB", "GB", "TB"
-    $order = 0
-    while ($bytes -ge 1024 -and $order -lt $sizes.Count - 1) {
-        $bytes /= 1024
-        $order++
-    }
-    return "{0:N2} {1}" -f $bytes, $sizes[$order]
 }
 
 # Create the output directory if it doesn't exist
@@ -82,7 +92,7 @@ Get-FilesRecursively $baseUrl
 
 $endTime = Get-Date
 $duration = $endTime - $startTime
-$formattedSize = Format-FileSize $totalSize
+$formattedSize = "{0:N2} MB" -f ($totalSize / 1MB)
 
 Log-Message "Download process completed in $($duration.TotalSeconds) seconds."
 Log-Message "Total files downloaded: $fileCount"
