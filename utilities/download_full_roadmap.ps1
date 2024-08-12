@@ -76,7 +76,6 @@ function Log-Progress {
     $percentComplete = if ($script:totalFiles -gt 0) { ($script:downloadedFiles / $script:totalFiles) * 100 } else { 0 }
     $downloadSpeed = if ($elapsedTime -gt 0) { $script:totalSize / $elapsedTime / 1MB } else { 0 }
     $estimatedTimeRemaining = if ($downloadSpeed -gt 0) { ($script:totalFiles - $script:downloadedFiles) / ($script:downloadedFiles / $elapsedTime) } else { 0 }
-
     $logMessage = "Progress: $($script:downloadedFiles) / $($script:totalFiles) files | " +
                   "$($percentComplete.ToString("F2"))% complete | " +
                   "Speed: $($downloadSpeed.ToString("F2")) MB/s | " +
@@ -92,26 +91,22 @@ function Get-FtpDirectoryListing($server, $path) {
     $ftpRequest.UsePassive = $true
     $ftpRequest.UseBinary = $true
     $ftpRequest.KeepAlive = $false
-
     $response = $ftpRequest.GetResponse()
     $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
     $directoryListing = $reader.ReadToEnd()
     $reader.Close()
     $response.Close()
-
     return $directoryListing -split "`r`n"
 }
 
 # Function to process FTP directory
 function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFiles, $downloadQueue) {
     $items = Get-FtpDirectoryListing $server $currentPath
-
     foreach ($item in $items) {
         $tokens = $item -split "\s+"
         if ($tokens.Count -ge 9) {
             $name = $tokens[-1]
             $isDirectory = $tokens[0].StartsWith("d")
-
             if ($isDirectory) {
                 Process-FtpDirectory $server "$currentPath$name/" $outputDir $downloadedFiles $downloadQueue
             } else {
@@ -119,11 +114,9 @@ function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFile
                     $script:totalFiles++
                     $ftpFilePath = "ftp://$($server)$currentPath$name"
                     $localFilePath = Join-Path $outputPath $outputDir ($currentPath.TrimStart("/") + $name)
-
                     if (!(Test-Path (Split-Path $localFilePath))) {
                         New-Item -ItemType Directory -Path (Split-Path $localFilePath) -Force | Out-Null
                     }
-
                     if (!(Test-Path $localFilePath) -and !$downloadedFiles.ContainsKey($localFilePath)) {
                         $downloadQueue.Enqueue(@{
                             Url = $ftpFilePath
@@ -145,17 +138,13 @@ function Get-RoadmapFilesRecursively($url, $depth = 0, $visitedUrls, $downloadQu
     if ($depth -gt 5 -or -not $visitedUrls.Add($url)) {
         return
     }
-
     Log-Message "Accessing Roadmap URL: $url (Depth: $depth)"
-
     try {
         $response = Invoke-WebRequest -Uri $url -UseBasicParsing
         $links = $response.Links | Where-Object { $_.href -ne $null }
-
         foreach ($link in $links) {
             $newUrl = [System.Uri]::new([System.Uri]$url, $link.href).AbsoluteUri
             Log-Message "Processing Roadmap link: $newUrl"
-
             if ($newUrl -like "*.bigwig") {
                 $script:totalFiles++
                 $filePath = Join-Path $roadmapPath ($newUrl -replace [regex]::Escape($roadmapBaseUrl), "")
@@ -222,7 +211,6 @@ Log-Message "Total files to download: $($script:totalFiles)"
 $maxConcurrentDownloads = 10
 $runspacePool = [runspacefactory]::CreateRunspacePool(1, $maxConcurrentDownloads)
 $runspacePool.Open()
-
 $runspaces = @()
 
 # Process download queue
@@ -283,7 +271,6 @@ while ($downloadQueue.Count -gt 0 -or $runspaces.Count -gt 0) {
 
     # Save state periodically
     Save-State $downloadedFiles $visitedUrls $script:totalSize
-
     Log-Progress
     Start-Sleep -Milliseconds 1000
 }
