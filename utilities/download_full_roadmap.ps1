@@ -5,8 +5,14 @@ $stateFile = Join-Path $outputPath "download_state.json"
 
 # FTP servers list
 $ftpServers = @(
-    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data/homo_sapiens/GRCh38/venous_blood/"; OutputDir = "blueprint"}
-    # Add more servers here if needed
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data/homo_sapiens/GRCh38/venous_blood/"; OutputDir = "blueprint_venous_blood"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data/homo_sapiens/GRCh38/"; OutputDir = "blueprint_homo_sapiens"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data/"; OutputDir = "blueprint_data"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/releases/"; OutputDir = "blueprint_releases"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/paper_data_sets/"; OutputDir = "blueprint_paper_data_sets"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/blueprint_Epivar/"; OutputDir = "blueprint_Epivar"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/blueprint_mouse/"; OutputDir = "blueprint_mouse"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/reference/"; OutputDir = "blueprint_reference"}
 )
 
 # Roadmap settings
@@ -18,6 +24,12 @@ foreach ($server in $ftpServers) {
     New-Item -ItemType Directory -Path (Join-Path $outputPath $server.OutputDir) -Force | Out-Null
 }
 New-Item -ItemType Directory -Path $roadmapPath -Force | Out-Null
+
+# Global variables for progress tracking
+$script:totalFiles = 0
+$script:downloadedFiles = 0
+$script:totalSize = 0
+$script:startTime = Get-Date
 
 # Function to save state
 function Save-State($downloadedFiles, $visitedUrls, $totalSize) {
@@ -58,6 +70,21 @@ function Log-Message($message) {
     Add-Content $logFile $logMessage
 }
 
+function Log-Progress {
+    $currentTime = Get-Date
+    $elapsedTime = ($currentTime - $script:startTime).TotalSeconds
+    $percentComplete = if ($script:totalFiles -gt 0) { ($script:downloadedFiles / $script:totalFiles) * 100 } else { 0 }
+    $downloadSpeed = if ($elapsedTime -gt 0) { $script:totalSize / $elapsedTime / 1MB } else { 0 }
+    $estimatedTimeRemaining = if ($downloadSpeed -gt 0) { ($script:totalFiles - $script:downloadedFiles) / ($script:downloadedFiles / $elapsedTime) } else { 0 }
+
+    $logMessage = "Progress: $($script:downloadedFiles) / $($script:totalFiles) files | " +
+                  "$($percentComplete.ToString("F2"))% complete | " +
+                  "Speed: $($downloadSpeed.ToString("F2")) MB/s | " +
+                  "ETA: $($estimatedTimeRemaining.ToString("F2")) seconds"
+    Write-Host $logMessage
+    Add-Content $logFile $logMessage
+}
+
 # Function to get FTP directory listing
 function Get-FtpDirectoryListing($server, $path) {
     $ftpRequest = [System.Net.FtpWebRequest]::Create("ftp://$($server)$path")
@@ -89,6 +116,7 @@ function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFile
                 Process-FtpDirectory $server "$currentPath$name/" $outputDir $downloadedFiles $downloadQueue
             } else {
                 if ($name -match "\.(bam|bed|bigwig|wig)$") {
+                    $script:totalFiles++
                     $ftpFilePath = "ftp://$($server)$currentPath$name"
                     $localFilePath = Join-Path $outputPath $outputDir ($currentPath.TrimStart("/") + $name)
 
@@ -102,6 +130,9 @@ function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFile
                             LocalPath = $localFilePath
                             Type = "FTP"
                         })
+                    } else {
+                        $script:downloadedFiles++
+                        Log-Progress
                     }
                 }
             }
@@ -126,6 +157,7 @@ function Get-RoadmapFilesRecursively($url, $depth = 0, $visitedUrls, $downloadQu
             Log-Message "Processing Roadmap link: $newUrl"
 
             if ($newUrl -like "*.bigwig") {
+                $script:totalFiles++
                 $filePath = Join-Path $roadmapPath ($newUrl -replace [regex]::Escape($roadmapBaseUrl), "")
                 if (!(Test-Path $filePath)) {
                     $downloadQueue.Enqueue(@{
@@ -133,6 +165,9 @@ function Get-RoadmapFilesRecursively($url, $depth = 0, $visitedUrls, $downloadQu
                         LocalPath = $filePath
                         Type = "Roadmap"
                     })
+                } else {
+                    $script:downloadedFiles++
+                    Log-Progress
                 }
             } elseif ($newUrl.StartsWith($roadmapBaseUrl) -and $newUrl -ne $url) {
                 Get-RoadmapFilesRecursively $newUrl ($depth + 1) $visitedUrls $downloadQueue
@@ -155,11 +190,14 @@ function Download-File($url, $localPath) {
         $fileInfo = Get-Item $localPath
         $downloadSpeed = [math]::Round($fileInfo.Length / 1MB / $stopwatch.Elapsed.TotalSeconds, 2)
         Log-Message "Downloaded: $($fileInfo.Name), Size: $($fileInfo.Length) bytes, Time: $($stopwatch.Elapsed.TotalSeconds) seconds, Speed: $downloadSpeed MB/s"
-        return $fileInfo.Length
+        $script:downloadedFiles++
+        $script:totalSize += $fileInfo.Length
+        Log-Progress
+        return $true
     }
     catch {
         Log-Message "Error downloading $url : $_"
-        return 0
+        return $false
     }
     finally {
         if ($webClient) { $webClient.Dispose() }
@@ -167,7 +205,7 @@ function Download-File($url, $localPath) {
 }
 
 # Main execution
-$downloadedFiles, $visitedUrls, $totalSize = Load-State
+$downloadedFiles, $visitedUrls, $script:totalSize = Load-State
 $downloadQueue = New-Object System.Collections.Queue
 
 # Queue FTP downloads
@@ -177,6 +215,8 @@ foreach ($server in $ftpServers) {
 
 # Queue Roadmap downloads
 Get-RoadmapFilesRecursively $roadmapBaseUrl 0 $visitedUrls $downloadQueue
+
+Log-Message "Total files to download: $($script:totalFiles)"
 
 # Set up runspace pool for parallel downloads
 $maxConcurrentDownloads = 10
@@ -229,8 +269,9 @@ while ($downloadQueue.Count -gt 0 -or $runspaces.Count -gt 0) {
     foreach ($runspace in $completedRunspaces) {
         $result = $runspace.Powershell.EndInvoke($runspace.AsyncResult)
         if ($result.Success) {
-            $totalSize += $result.Size
+            $script:totalSize += $result.Size
             $downloadedFiles[$result.Path] = $true
+            $script:downloadedFiles++
             $downloadSpeed = [math]::Round($result.Size / 1MB / $result.Time, 2)
             Log-Message "Downloaded: $($result.Path), Size: $($result.Size) bytes, Time: $($result.Time) seconds, Speed: $downloadSpeed MB/s"
         } else {
@@ -241,12 +282,13 @@ while ($downloadQueue.Count -gt 0 -or $runspaces.Count -gt 0) {
     $runspaces = @($runspaces | Where-Object { -not $_.AsyncResult.IsCompleted })
 
     # Save state periodically
-    Save-State $downloadedFiles $visitedUrls $totalSize
+    Save-State $downloadedFiles $visitedUrls $script:totalSize
 
-    Start-Sleep -Milliseconds 100
+    Log-Progress
+    Start-Sleep -Milliseconds 1000
 }
 
 $runspacePool.Close()
 $runspacePool.Dispose()
 
-Write-Host "Download complete. Total size: $($totalSize / 1GB) GB"
+Write-Host "Download complete. Total size: $($script:totalSize / 1GB) GB"
