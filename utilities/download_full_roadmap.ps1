@@ -46,7 +46,10 @@ function Load-State {
     if (Test-Path $stateFile) {
         try {
             $state = Get-Content $stateFile | ConvertFrom-Json
-            $downloadedFiles = if ($state.DownloadedFiles -is [array]) { $state.DownloadedFiles } else { @{} }
+            $downloadedFiles = @{}
+            if ($state.DownloadedFiles -is [PSCustomObject]) {
+                $state.DownloadedFiles.PSObject.Properties | ForEach-Object { $downloadedFiles[$_.Name] = $_.Value }
+            }
             $visitedUrls = New-Object System.Collections.Generic.HashSet[string]
             if ($state.VisitedUrls -is [array]) {
                 foreach ($url in $state.VisitedUrls) {
