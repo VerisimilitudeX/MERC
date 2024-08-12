@@ -29,10 +29,23 @@ function Save-State($blueprintFiles, $roadmapUrls, $totalSize) {
 # Function to load state
 function Load-State {
     if (Test-Path $stateFile) {
-        $state = Get-Content $stateFile | ConvertFrom-Json
-        return @($state.BlueprintFiles, [System.Collections.Generic.HashSet[string]]::new($state.RoadmapUrls), $state.TotalSize)
+        try {
+            $state = Get-Content $stateFile | ConvertFrom-Json
+            $blueprintFiles = if ($state.BlueprintFiles -is [array]) { $state.BlueprintFiles } else { @() }
+            $visitedUrls = New-Object System.Collections.Generic.HashSet[string]
+            if ($state.RoadmapUrls -is [array]) {
+                foreach ($url in $state.RoadmapUrls) {
+                    $visitedUrls.Add($url) | Out-Null
+                }
+            }
+            $totalSize = if ($state.TotalSize -is [long]) { $state.TotalSize } else { 0 }
+            return @($blueprintFiles, $visitedUrls, $totalSize)
+        }
+        catch {
+            Log-Message "Error loading state file: $_"
+        }
     }
-    return @(@(), [System.Collections.Generic.HashSet[string]]::new(), 0)
+    return @(@(), (New-Object System.Collections.Generic.HashSet[string]), 0)
 }
 
 function Log-Message($message) {
