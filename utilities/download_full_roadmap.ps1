@@ -1,7 +1,6 @@
 # Common settings
 $outputPath = "E:\"
 $logFile = Join-Path $outputPath "download_log.txt"
-$stateFile = Join-Path $outputPath "download_state.json"
 
 # FTP servers list
 $ftpServers = @(
@@ -20,40 +19,56 @@ foreach ($server in $ftpServers) {
     New-Item -ItemType Directory -Path (Join-Path $outputPath $server.OutputDir) -Force | Out-Null
 }
 
-# Function to download file with progress
+# Function to download file with manual progress tracking
 function Download-File($url, $localPath) {
     try {
-        $webClient = New-Object System.Net.WebClient
-        $webClient.Headers.Add("User-Agent", "PowerShell Script")
+        $ftpRequest = [System.Net.FtpWebRequest]::Create($url)
+        $ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::DownloadFile
+        $ftpRequest.UseBinary = $true
+        $ftpRequest.UsePassive = $true
+        $ftpRequest.KeepAlive = $false
 
-        # Progress callback
-        $webClient.DownloadProgressChanged += {
-            param($sender, $e)
-            Write-Host "Downloading $($localPath): $($e.ProgressPercentage)% complete ($($e.BytesReceived / 1MB) MB of $($e.TotalBytesToReceive / 1MB) MB)"
+        $response = $ftpRequest.GetResponse()
+        $responseStream = $response.GetResponseStream()
+        $fileStream = [System.IO.File]::Create($localPath)
+        $buffer = New-Object byte[] 8192
+        $totalBytes = $response.ContentLength
+        $totalRead = 0
+        $read = 0
+
+        while (($read = $responseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $fileStream.Write($buffer, 0, $read)
+            $totalRead += $read
+            $percentComplete = [math]::Round(($totalRead / $totalBytes) * 100, 2)
+            Write-Host "Downloading $($localPath): $percentComplete% complete ($([math]::Round($totalRead / 1MB, 2)) MB of $([math]::Round($totalBytes / 1MB, 2)) MB)"
         }
 
-        $webClient.DownloadFile($url, $localPath)
+        $fileStream.Close()
+        $responseStream.Close()
         Write-Host "Downloaded: $localPath"
     } catch {
         Write-Host "Error downloading $url : $_"
-    } finally {
-        if ($webClient) { $webClient.Dispose() }
     }
 }
 
 # Function to get FTP directory listing
 function Get-FtpDirectoryListing($server, $path) {
-    $ftpRequest = [System.Net.FtpWebRequest]::Create("ftp://$($server)$path")
-    $ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::ListDirectoryDetails
-    $ftpRequest.UsePassive = $true
-    $ftpRequest.UseBinary = $true
-    $ftpRequest.KeepAlive = $false
-    $response = $ftpRequest.GetResponse()
-    $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
-    $directoryListing = $reader.ReadToEnd()
-    $reader.Close()
-    $response.Close()
-    return $directoryListing -split "`r`n"
+    try {
+        $ftpRequest = [System.Net.FtpWebRequest]::Create("ftp://$($server)$path")
+        $ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::ListDirectoryDetails
+        $ftpRequest.UsePassive = $true
+        $ftpRequest.UseBinary = $true
+        $ftpRequest.KeepAlive = $false
+        $response = $ftpRequest.GetResponse()
+        $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
+        $directoryListing = $reader.ReadToEnd()
+        $reader.Close()
+        $response.Close()
+        return $directoryListing -split "`r`n"
+    } catch {
+        Write-Host "Error accessing FTP directory $server$path : $_"
+        return @()  # Return an empty array on error
+    }
 }
 
 # Function to process FTP directory
