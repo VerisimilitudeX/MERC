@@ -1,12 +1,11 @@
 # Common settings
 $outputPath = "E:\"
-$logFile = Join-Path $outputPath "download_log.txt"
 $stateFile = Join-Path $outputPath "download_state.json"
 
 # FTP servers list
 $ftpServers = @(
     @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data/homo_sapiens/GRCh38/venous_blood/"; OutputDir = "blueprint_venous_blood"}
-    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data/homo_sapiens/GRCh38/"; OutputDir = "blueprint_homo_sapiens"}
+    @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data_homo_sapiens/GRCh38/"; OutputDir = "blueprint_homo_sapiens"}
     @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/data/"; OutputDir = "blueprint_data"}
     @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/releases/"; OutputDir = "blueprint_releases"}
     @{Server = "ftp.ebi.ac.uk"; Path = "/pub/databases/blueprint/paper_data_sets/"; OutputDir = "blueprint_paper_data_sets"}
@@ -24,7 +23,7 @@ foreach ($server in $ftpServers) {
 function Load-State {
     if (Test-Path $stateFile) {
         try {
-            return Get-Content $stateFile | ConvertFrom-Json
+            return (Get-Content $stateFile | ConvertFrom-Json) -as [hashtable]
         } catch {
             Write-Host "Error loading state file: $_"
             return @{}
@@ -76,7 +75,7 @@ function Download-File($url, $localPath, $maxRetries = 3) {
                 Write-Host "Failed to download $url after $maxRetries attempts."
                 return $false
             }
-            Start-Sleep -Seconds 5  # Wait before retrying
+            Start-Sleep -Seconds (5 * $attempts)  # Exponential backoff
         }
     }
 }
@@ -128,6 +127,9 @@ function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFile
 
 # Main execution
 $downloadedFiles = Load-State
+if (-not $downloadedFiles) {
+    $downloadedFiles = @{}
+}
 foreach ($server in $ftpServers) {
     Process-FtpDirectory $server.Server $server.Path $server.OutputDir $downloadedFiles
 }
