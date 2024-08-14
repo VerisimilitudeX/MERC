@@ -1,6 +1,7 @@
 # Common settings
 $outputPath = "E:\"
 $logFile = Join-Path $outputPath "download_log.txt"
+$stateFile = Join-Path $outputPath "download_state.json"
 
 # FTP servers list
 $ftpServers = @(
@@ -19,35 +20,64 @@ foreach ($server in $ftpServers) {
     New-Item -ItemType Directory -Path (Join-Path $outputPath $server.OutputDir) -Force | Out-Null
 }
 
-# Function to download file with manual progress tracking
-function Download-File($url, $localPath) {
-    try {
-        $ftpRequest = [System.Net.FtpWebRequest]::Create($url)
-        $ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::DownloadFile
-        $ftpRequest.UseBinary = $true
-        $ftpRequest.UsePassive = $true
-        $ftpRequest.KeepAlive = $false
-
-        $response = $ftpRequest.GetResponse()
-        $responseStream = $response.GetResponseStream()
-        $fileStream = [System.IO.File]::Create($localPath)
-        $buffer = New-Object byte[] 8192
-        $totalBytes = $response.ContentLength
-        $totalRead = 0
-        $read = 0
-
-        while (($read = $responseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-            $fileStream.Write($buffer, 0, $read)
-            $totalRead += $read
-            $percentComplete = [math]::Round(($totalRead / $totalBytes) * 100, 2)
-            Write-Host "Downloading $($localPath): $percentComplete% complete ($([math]::Round($totalRead / 1MB, 2)) MB of $([math]::Round($totalBytes / 1MB, 2)) MB)"
+# Function to load the state of downloaded files
+function Load-State {
+    if (Test-Path $stateFile) {
+        try {
+            return Get-Content $stateFile | ConvertFrom-Json
+        } catch {
+            Write-Host "Error loading state file: $_"
+            return @{}
         }
+    } else {
+        return @{}
+    }
+}
 
-        $fileStream.Close()
-        $responseStream.Close()
-        Write-Host "Downloaded: $localPath"
-    } catch {
-        Write-Host "Error downloading $url : $_"
+# Function to save the state of downloaded files
+function Save-State($downloadedFiles) {
+    $downloadedFiles | ConvertTo-Json | Set-Content $stateFile
+}
+
+# Function to download file with retry logic
+function Download-File($url, $localPath, $maxRetries = 3) {
+    $attempts = 0
+    while ($attempts -lt $maxRetries) {
+        try {
+            $ftpRequest = [System.Net.FtpWebRequest]::Create($url)
+            $ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::DownloadFile
+            $ftpRequest.UseBinary = $true
+            $ftpRequest.UsePassive = $true
+            $ftpRequest.KeepAlive = $false
+
+            $response = $ftpRequest.GetResponse()
+            $responseStream = $response.GetResponseStream()
+            $fileStream = [System.IO.File]::Create($localPath)
+            $buffer = New-Object byte[] 8192
+            $totalBytes = $response.ContentLength
+            $totalRead = 0
+            $read = 0
+
+            while (($read = $responseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                $fileStream.Write($buffer, 0, $read)
+                $totalRead += $read
+                $percentComplete = [math]::Round(($totalRead / $totalBytes) * 100, 2)
+                Write-Host "Downloading $($localPath): $percentComplete% complete ($([math]::Round($totalRead / 1MB, 2)) MB of $([math]::Round($totalBytes / 1MB, 2)) MB)"
+            }
+
+            $fileStream.Close()
+            $responseStream.Close()
+            Write-Host "Downloaded: $localPath"
+            return $true
+        } catch {
+            Write-Host "Error downloading $url : $_"
+            $attempts++
+            if ($attempts -ge $maxRetries) {
+                Write-Host "Failed to download $url after $maxRetries attempts."
+                return $false
+            }
+            Start-Sleep -Seconds 5  # Wait before retrying
+        }
     }
 }
 
@@ -72,7 +102,7 @@ function Get-FtpDirectoryListing($server, $path) {
 }
 
 # Function to process FTP directory
-function Process-FtpDirectory($server, $currentPath, $outputDir) {
+function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFiles) {
     $items = Get-FtpDirectoryListing $server $currentPath
     foreach ($item in $items) {
         $tokens = $item -split "\s+"
@@ -80,18 +110,24 @@ function Process-FtpDirectory($server, $currentPath, $outputDir) {
             $name = $tokens[-1]
             $isDirectory = $tokens[0].StartsWith("d")
             if ($isDirectory) {
-                Process-FtpDirectory $server "$currentPath$name/" $outputDir
+                Process-FtpDirectory $server "$currentPath$name/" $outputDir $downloadedFiles
             } else {
                 $ftpFilePath = "ftp://$($server)$currentPath$name"
                 $localFilePath = Join-Path $outputPath $outputDir ($currentPath.TrimStart("/") + $name)
                 New-Item -ItemType Directory -Path (Split-Path $localFilePath) -Force | Out-Null
-                Download-File $ftpFilePath $localFilePath
+                if (-not $downloadedFiles.ContainsKey($localFilePath)) {
+                    if (Download-File $ftpFilePath $localFilePath) {
+                        $downloadedFiles[$localFilePath] = $true
+                        Save-State $downloadedFiles
+                    }
+                }
             }
         }
     }
 }
 
 # Main execution
+$downloadedFiles = Load-State
 foreach ($server in $ftpServers) {
-    Process-FtpDirectory $server.Server $server.Path $server.OutputDir
+    Process-FtpDirectory $server.Server $server.Path $server.OutputDir $downloadedFiles
 }
