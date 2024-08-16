@@ -22,7 +22,7 @@ def load_dataset(directory, chrom, start, end):
     return np.array(data).T  # Transpose to have features as columns
 
 # Specify the directory, chromosome, and range
-directory = '/workspaces/merc/data/subset/pval/'
+directory = '/workspaces/MERC/data/subset/pval/'
 chrom = 'chr1'
 start, end = 0, 1000
 

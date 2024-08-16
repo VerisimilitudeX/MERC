@@ -26,8 +26,8 @@ def plot_bigwig(file_path, chrom, start, end):
         print(f"Error processing {file_path}: {e}")
 
 # Example usage
-file_path = 'E001-H3K4me1.fc.signal.bigwig'  # Path to your BigWig file
-chrom = 'chr1'  # Chromosome
+file_path = '/workspaces/MERC/data/subset/pval/E002-H3K36me3.pval.signal.bigwig'  # Path to your BigWig file
+chrom = 'chr2'  # Chromosome
 start = 0  # Start position
 end = 10000  # End position
 
