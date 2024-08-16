@@ -10,7 +10,3 @@ The Multi-modal Epigenetic Research and Computation (MERC) Framework aims to dev
 4. Validate the framework on epigenetic age acceleration and related disease DBs.
 5. Create a FAIR (Findable, Accessible, Interoperable, and Reusable) data sharing platform to facilitate collaboration in epigenetics research (ISEF winner emphasized this specifically).
 6. Create a GUI so it is user accessible, make it so that any research or user can use it easily
-
-## For Hack Club Reviewer
-
-This project is just looking at the data and conducting some preprocessing on it. I still need to learn more about what data I'm working with before shipping the completed ML models.
