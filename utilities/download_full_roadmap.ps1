@@ -40,6 +40,28 @@ function Save-State($downloadedFiles) {
 
 # Function to download file with retry logic
 function Download-File($url, $localPath, $maxRetries = 3) {
+    if (Test-Path $localPath) {
+        $ftpRequest = [System.Net.FtpWebRequest]::Create($url)
+        $ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::GetFileSize
+        $ftpRequest.UseBinary = $true
+        $ftpRequest.UsePassive = $true
+        $ftpRequest.KeepAlive = $false
+
+        try {
+            $response = $ftpRequest.GetResponse()
+            $remoteFileSize = $response.ContentLength
+            $response.Close()
+
+            $localFileSize = (Get-Item $localPath).Length
+            if ($localFileSize -eq $remoteFileSize) {
+                Write-Host "File already exists and has correct size: $localPath"
+                return $true
+            }
+        } catch {
+            Write-Host "Error checking remote file size: $_"
+        }
+    }
+
     $attempts = 0
     while ($attempts -lt $maxRetries) {
         try {
@@ -113,7 +135,10 @@ function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFile
             } else {
                 $ftpFilePath = "ftp://$($server)$currentPath$name"
                 $localFilePath = Join-Path $outputPath $outputDir ($currentPath.TrimStart("/") + $name)
-                New-Item -ItemType Directory -Path (Split-Path $localFilePath) -Force | Out-Null
+                $localDir = Split-Path $localFilePath
+                if (-not (Test-Path $localDir)) {
+                    New-Item -ItemType Directory -Path $localDir -Force | Out-Null
+                }
                 if (-not $downloadedFiles.ContainsKey($localFilePath)) {
                     if (Download-File $ftpFilePath $localFilePath) {
                         $downloadedFiles[$localFilePath] = $true
@@ -131,5 +156,11 @@ if (-not $downloadedFiles) {
     $downloadedFiles = @{}
 }
 foreach ($server in $ftpServers) {
-    Process-FtpDirectory $server.Server $server.Path $server.OutputDir $downloadedFiles
+    try {
+        Process-FtpDirectory $server.Server $server.Path $server.OutputDir $downloadedFiles
+    } catch {
+        Write-Host "Error processing server $($server.Server): $_"
+        $continue = Read-Host "Do you want to continue with the next server? (Y/N)"
+        if ($continue -ne "Y") { break }
+    }
 }
