@@ -73,6 +73,13 @@ function Download-File($url, $localPath, $maxRetries = 3) {
 
             $response = $ftpRequest.GetResponse()
             $responseStream = $response.GetResponseStream()
+            
+            # Ensure the directory exists
+            $localDir = Split-Path $localPath
+            if (-not (Test-Path $localDir)) {
+                New-Item -ItemType Directory -Path $localDir -Force | Out-Null
+            }
+            
             $fileStream = [System.IO.File]::Create($localPath)
             $buffer = New-Object byte[] 8192
             $totalBytes = $response.ContentLength
@@ -134,7 +141,8 @@ function Process-FtpDirectory($server, $currentPath, $outputDir, $downloadedFile
                 Process-FtpDirectory $server "$currentPath$name/" $outputDir $downloadedFiles
             } else {
                 $ftpFilePath = "ftp://$($server)$currentPath$name"
-                $localFilePath = Join-Path $outputPath $outputDir ($currentPath.TrimStart("/") + $name)
+                $relativePath = $currentPath.TrimStart("/")
+                $localFilePath = Join-Path $outputPath $outputDir $relativePath $name
                 $localDir = Split-Path $localFilePath
                 if (-not (Test-Path $localDir)) {
                     New-Item -ItemType Directory -Path $localDir -Force | Out-Null
