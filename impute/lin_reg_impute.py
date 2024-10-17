@@ -2,7 +2,9 @@ import pyBigWig
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
+from sklearn.utils import shuffle
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Step 1: Load the BigWig files with your paths
 bw_chip_seq_input = pyBigWig.open('/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906416_UCSD.Adipose_Tissue.Input.STL003.bw')
@@ -26,54 +28,79 @@ h3k27ac_signal[h3k27ac_signal == -np.inf] = np.nan
 bw_chip_seq_input.close()
 bw_h3k27ac.close()
 
-# Save original H3K27ac signal for comparison
-original_h3k27ac_signal = np.copy(h3k27ac_signal)
+# Step 5: Visualize the data distribution
+plt.figure(figsize=(14, 6))
 
-# Step 5: Identify missing values in H3K27ac and valid ChIP-seq input values
-missing_indices = np.isnan(h3k27ac_signal)
-valid_chip_seq_indices = ~np.isnan(chip_seq_input_signal)
+# Distribution of ChIP-seq input signal
+plt.subplot(1, 2, 1)
+sns.histplot(chip_seq_input_signal[~np.isnan(chip_seq_input_signal)], kde=True, bins=50, color='blue')
+plt.title('ChIP-seq Input Signal Distribution')
+plt.xlabel('ChIP-seq Input Signal')
 
-# Select regions with valid ChIP-seq input but missing H3K27ac data
-imputation_indices = missing_indices & valid_chip_seq_indices
+# Distribution of H3K27ac signal
+plt.subplot(1, 2, 2)
+sns.histplot(h3k27ac_signal[~np.isnan(h3k27ac_signal)], kde=True, bins=50, color='green')
+plt.title('H3K27ac Signal Distribution')
+plt.xlabel('H3K27ac Signal')
 
-# Step 6: Create a holdout set by randomly hiding part of the original data (20% of the data)
-np.random.seed(42)  # For reproducibility
-total_valid_data = np.sum(valid_chip_seq_indices)
-holdout_size = int(0.2 * total_valid_data)
-holdout_indices = np.random.choice(np.where(valid_chip_seq_indices)[0], size=holdout_size, replace=False)
+plt.tight_layout()
+plt.show()
 
-# Hide these values in the H3K27ac signal (mark as NaN)
-h3k27ac_signal[holdout_indices] = np.nan
+# Scatter plot of ChIP-seq input signal vs H3K27ac signal
+valid_data_indices = ~np.isnan(chip_seq_input_signal) & ~np.isnan(h3k27ac_signal)
+plt.figure(figsize=(6, 6))
+plt.scatter(chip_seq_input_signal[valid_data_indices], h3k27ac_signal[valid_data_indices], alpha=0.5, color='purple')
+plt.title('ChIP-seq Input vs H3K27ac Signal')
+plt.xlabel('ChIP-seq Input Signal')
+plt.ylabel('H3K27ac Signal')
+plt.show()
 
-# Step 7: Remove rows where ChIP-seq input signal (X_train) has NaN values
-valid_train_indices = ~np.isnan(h3k27ac_signal) & valid_chip_seq_indices
-X_train = chip_seq_input_signal[valid_train_indices].reshape(-1, 1)
-y_train = h3k27ac_signal[valid_train_indices]
+# Step 6: Shuffle and re-split the data into training, validation, and test sets
+# Only use valid data (non-NaN values)
+chip_seq_input_signal_shuffled, h3k27ac_signal_shuffled = shuffle(
+    chip_seq_input_signal[valid_data_indices], h3k27ac_signal[valid_data_indices], random_state=42
+)
 
-# Ensure no NaN values in y_train
-assert not np.isnan(y_train).any(), "Training target contains NaN values."
+# Step 7: Split the data into 60% training, 20% validation, 20% test
+n = len(chip_seq_input_signal_shuffled)
+train_size = int(0.6 * n)
+validation_size = int(0.2 * n)
 
-# Step 8: Train a Linear Regression model on the training data (non-hidden regions)
+X_train = chip_seq_input_signal_shuffled[:train_size].reshape(-1, 1)
+y_train = h3k27ac_signal_shuffled[:train_size]
+
+X_validation = chip_seq_input_signal_shuffled[train_size:train_size + validation_size].reshape(-1, 1)
+y_validation = h3k27ac_signal_shuffled[train_size:train_size + validation_size]
+
+X_test = chip_seq_input_signal_shuffled[train_size + validation_size:].reshape(-1, 1)
+y_test = h3k27ac_signal_shuffled[train_size + validation_size:]
+
+# Step 8: Train a Linear Regression model on the shuffled training data
 model = LinearRegression()
 model.fit(X_train, y_train)
 
-# Step 9: Predict the holdout values
-X_holdout = chip_seq_input_signal[holdout_indices].reshape(-1, 1)
-predicted_holdout_values = model.predict(X_holdout)
+# Step 9: Predict and calculate the MSE for training, validation, and test sets
+y_train_pred = model.predict(X_train)
+y_validation_pred = model.predict(X_validation)
+y_test_pred = model.predict(X_test)
 
-# Step 10: Calculate MSE on the holdout set
-original_holdout_values = original_h3k27ac_signal[holdout_indices]
-mse = mean_squared_error(original_holdout_values, predicted_holdout_values)
-print(f"Mean Squared Error (MSE) for selectively hidden regions: {mse}")
+train_mse = mean_squared_error(y_train, y_train_pred)
+validation_mse = mean_squared_error(y_validation, y_validation_pred)
+test_mse = mean_squared_error(y_test, y_test_pred)
 
-# Step 11: Impute the originally missing values in the actual data
+print(f"Training MSE: {train_mse}")
+print(f"Validation MSE: {validation_mse}")
+print(f"Test MSE: {test_mse}")
+
+# Step 10: Impute the originally missing values in the actual data
+imputation_indices = np.isnan(h3k27ac_signal) & ~np.isnan(chip_seq_input_signal)
 X_missing = chip_seq_input_signal[imputation_indices].reshape(-1, 1)
 predicted_missing_values = model.predict(X_missing)
 
-# Step 12: Assign imputed values to the original missing regions
+# Step 11: Assign imputed values to the original missing regions
 h3k27ac_signal[imputation_indices] = predicted_missing_values
 
-# Step 13: Plot the imputed regions in the original data
+# Step 12: Plot the imputed regions in the original data
 imputed_region_indices = np.where(imputation_indices)[0]
 first_imputed_index = imputed_region_indices[0]
 zoom_start = max(first_imputed_index - 50, 0)
@@ -92,4 +119,4 @@ plt.ylabel('Signal Intensity')
 plt.legend()
 plt.show()
 
-print(f"Imputation complete. Showing region {zoom_start} to {zoom_end}.")
+print(f"Training, validation, and test MSE calculated. Showing region {zoom_start} to {zoom_end}.")
