@@ -102,7 +102,7 @@ print(f"Test MSE (overall): {test_mse}")
 threshold = 20
 high_signal_indices = y_test > threshold
 mse_high_signals = mean_squared_error(y_test[high_signal_indices], y_test_pred[high_signal_indices])
-print("MSE on peaks > 20" + mse_high_signals)
+print(f"MSE on peaks > 20: {mse_high_signals}")
 
 # Step 13: Plot comparison between original, imputed, and actual values
 plt.figure(figsize=(10, 5))
