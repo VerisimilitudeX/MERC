@@ -5,3 +5,4 @@
 *.bigwig filter=lfs diff=lfs merge=lfs -text
 *.bw filter=lfs diff=lfs merge=lfs -text
 *.wig.gz filter=lfs diff=lfs merge=lfs -text
+*.bed.gz filter=lfs diff=lfs merge=lfs -text
