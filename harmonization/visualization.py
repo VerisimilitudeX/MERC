@@ -1,11 +1,15 @@
-import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
 import pyBigWig
+import seaborn as sns
 
 # Load your data (example paths used here)
-bw_chip_seq_input = pyBigWig.open('/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906416_UCSD.Adipose_Tissue.Input.STL003.bw')
-bw_h3k27ac = pyBigWig.open('/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906394_UCSD.Adipose_Tissue.H3K27ac.STL003.bw')
+bw_chip_seq_input = pyBigWig.open(
+    "/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906416_UCSD.Adipose_Tissue.Input.STL003.bw"
+)
+bw_h3k27ac = pyBigWig.open(
+    "/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906394_UCSD.Adipose_Tissue.H3K27ac.STL003.bw"
+)
 
 # Specify chromosome and range
 chromosome = "chr17"
@@ -27,8 +31,10 @@ bw_h3k27ac.close()
 
 # Visualize distributions
 plt.figure(figsize=(12, 6))
-sns.histplot(chip_seq_input_signal, bins=50, color='blue', label='ChIP-seq Input', kde=True)
-sns.histplot(h3k27ac_signal, bins=50, color='orange', label='H3K27ac', kde=True)
+sns.histplot(
+    chip_seq_input_signal, bins=50, color="blue", label="ChIP-seq Input", kde=True
+)
+sns.histplot(h3k27ac_signal, bins=50, color="orange", label="H3K27ac", kde=True)
 plt.legend()
 plt.title("Distribution of Signal Intensities")
 plt.xlabel("Signal Intensity")

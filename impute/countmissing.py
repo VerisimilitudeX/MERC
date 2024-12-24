@@ -1,9 +1,13 @@
-import pyBigWig
 import numpy as np
+import pyBigWig
 
 # Step 1: Load the BigWig files with your paths
-bw_chip_seq_input = pyBigWig.open('/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906416_UCSD.Adipose_Tissue.Input.STL003.bw')
-bw_h3k27ac = pyBigWig.open('/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906394_UCSD.Adipose_Tissue.H3K27ac.STL003.bw')
+bw_chip_seq_input = pyBigWig.open(
+    "/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906416_UCSD.Adipose_Tissue.Input.STL003.bw"
+)
+bw_h3k27ac = pyBigWig.open(
+    "/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906394_UCSD.Adipose_Tissue.H3K27ac.STL003.bw"
+)
 
 # Step 2: Specify the chromosome (example using chr17) and genomic range
 chromosome = "chr17"

@@ -1,10 +1,14 @@
-import pyBigWig
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import pyBigWig
 
 # Load the BigWig files with your paths
-bw_chip_seq_input = pyBigWig.open('/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906416_UCSD.Adipose_Tissue.Input.STL003.bw')
-bw_h3k27ac = pyBigWig.open('/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906394_UCSD.Adipose_Tissue.H3K27ac.STL003.bw')
+bw_chip_seq_input = pyBigWig.open(
+    "/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906416_UCSD.Adipose_Tissue.Input.STL003.bw"
+)
+bw_h3k27ac = pyBigWig.open(
+    "/Users/verisimilitude/Documents/GitHub/MERC/data/subset/GSM906394_UCSD.Adipose_Tissue.H3K27ac.STL003.bw"
+)
 
 # Specify the chromosome and genomic range
 chromosome = "chr17"
@@ -26,14 +30,21 @@ bw_h3k27ac.close()
 
 # Create a plot to visualize the H3K27ac signal with missing data
 plt.figure(figsize=(10, 5))
-plt.plot(h3k27ac_signal, color='green', label='H3K27ac Signal')
+plt.plot(h3k27ac_signal, color="green", label="H3K27ac Signal")
 
 # Amplify the missing data visualization
-plt.fill_between(range(len(h3k27ac_signal)), np.nanmin(h3k27ac_signal), np.nanmax(h3k27ac_signal),
-                 where=np.isnan(h3k27ac_signal), color='red', alpha=0.5, label='Missing Data')
+plt.fill_between(
+    range(len(h3k27ac_signal)),
+    np.nanmin(h3k27ac_signal),
+    np.nanmax(h3k27ac_signal),
+    where=np.isnan(h3k27ac_signal),
+    color="red",
+    alpha=0.5,
+    label="Missing Data",
+)
 
-plt.title('H3K27ac Signal with Missing Values (chr17)')
-plt.xlabel('Genomic Position')
-plt.ylabel('Signal Intensity')
+plt.title("H3K27ac Signal with Missing Values (chr17)")
+plt.xlabel("Genomic Position")
+plt.ylabel("Signal Intensity")
 plt.legend()
 plt.show()

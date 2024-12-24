@@ -1,11 +1,13 @@
-from huggingface_hub import hf_hub_download, list_repo_files
 import os
+
+from huggingface_hub import hf_hub_download, list_repo_files
 
 # Repository ID on Hugging Face
 repo_id = "Lab-Rasool/TCGA"
 
 # Your Hugging Face access token
-hf_token = "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"  # Replace this with your Hugging Face token if needed
+# Replace this with your Hugging Face token if needed
+hf_token = "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"
 
 # Directory to download files on the external SSD
 download_dir = "/Volumes/T9/tcga"
@@ -21,7 +23,7 @@ files_to_download = [
     "Pathology Report (gatortorn-base)/pathology_report.parquet",
     "Radiology (REMEDIS)/radiology_data.parquet",
     "Radiology (RadImageNet)/radiology_data.parquet",
-    "Slide Image (UNI)/slide_image_data.parquet"
+    "Slide Image (UNI)/slide_image_data.parquet",
 ]
 
 # Loop through each file path and download to the specified directory
@@ -31,7 +33,7 @@ for file_path in files_to_download:
             repo_id=repo_id,
             filename=file_path,
             local_dir=download_dir,  # Download location on external SSD
-            token=hf_token           # Authentication token if the repo is private
+            token=hf_token,  # Authentication token if the repo is private
         )
         print(f"Downloaded {file_path} to {local_path}")
     except Exception as e:
